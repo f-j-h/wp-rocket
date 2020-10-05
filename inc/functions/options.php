@@ -215,9 +215,9 @@ function get_rocket_cache_reject_uri( $force = false ) { // phpcs:ignore WordPre
 	$uris              = (array) get_rocket_option( 'cache_reject_uri', [] );
 	$home_root         = rocket_get_home_dirname();
 	$home_root_escaped = preg_quote( $home_root, '/' ); // The site is not at the domain root, it's in a folder.
+	$home_root_len     = strlen( $home_root );
 
 	if ( '' !== $home_root && $uris ) {
-		$home_root_len = strlen( $home_root );
 		foreach ( $uris as $i => $uri ) {
 			/**
 			 * Since these URIs can be regex patterns like `/homeroot(/.+)/`, we can't simply search for the string `/homeroot/` (nor `/homeroot`).
@@ -423,6 +423,12 @@ function get_rocket_exclude_defer_js() { // phpcs:ignore WordPress.NamingConvent
 		'verify.authorize.net/anetseal',
 		'lib/admin/assets/lib/webfont/webfont.min.js',
 		'app.mailerlite.com',
+		'widget.reviews.io',
+		'simplybook.(.*)/v2/widget/widget.js',
+		'/wp-includes/js/dist/i18n.min.js',
+		'/wp-content/plugins/wpfront-notification-bar/js/wpfront-notification-bar(.*).js',
+		'/wp-content/plugins/oxygen/component-framework/vendor/aos/aos.js',
+		'static.mailerlite.com/data/(.*).js',
 	];
 
 	if ( get_rocket_option( 'defer_all_js', 0 ) && get_rocket_option( 'defer_all_js_safe', 0 ) ) {
@@ -452,30 +458,6 @@ function get_rocket_exclude_defer_js() { // phpcs:ignore WordPress.NamingConvent
 	}
 
 	return $exclude_defer_js;
-}
-
-/**
- * Get list of CSS files to be excluded from async CSS.
- *
- * @since 2.10
- * @author Remy Perona
- *
- * @return array An array of URLs for the CSS files to be excluded.
- */
-function get_rocket_exclude_async_css() { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals
-	/**
-	 * Filter list of async CSS files
-	 *
-	 * @since 2.10
-	 * @author Remy Perona
-	 *
-	 * @param array $exclude_async_css An array of URLs for the CSS files to be excluded.
-	 */
-	$exclude_async_css = (array) apply_filters( 'rocket_exclude_async_css', [] );
-	$exclude_async_css = array_filter( $exclude_async_css );
-	$exclude_async_css = array_flip( array_flip( $exclude_async_css ) );
-
-	return $exclude_async_css;
 }
 
 /**
@@ -574,9 +556,9 @@ function rocket_check_key() {
 			return $return;
 		}
 
-		if ( 'USER_BLACKLISTED' === $body ) {
+		if ( 'USER_BLOCKED' === $body ) {
 			// Translators: %1$s = opening link tag, %2$s = closing link tag.
-			$message = __( 'License validation failed. This user account is blacklisted.', 'rocket' ) . '<br>' . sprintf( __( 'Please see %1$sthis guide%2$s for more info.', 'rocket' ), '<a href="https://docs.wp-rocket.me/article/100-resolving-problems-with-license-validation#errors" rel="noopener noreferrer" target=_"blank">', '</a>' );
+			$message = __( 'License validation failed. This user account is blocked.', 'rocket' ) . '<br>' . sprintf( __( 'Please see %1$sthis guide%2$s for more info.', 'rocket' ), '<a href="https://docs.wp-rocket.me/article/100-resolving-problems-with-license-validation#errors" rel="noopener noreferrer" target=_"blank">', '</a>' );
 			set_transient( 'rocket_check_key_errors', [ $message ] );
 
 			return $return;

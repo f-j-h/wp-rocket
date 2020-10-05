@@ -122,6 +122,7 @@ function rocket_plugins_to_deactivate() {
 		'cache-enabler'                              => 'cache-enabler/cache-enabler.php',
 		'swift-performance-lite'                     => 'swift-performance-lite/performance.php',
 		'swift-performance'                          => 'swift-performance/performance.php',
+		'speed-booster-pack'                         => 'speed-booster-pack/speed-booster-pack.php',
 		'wp-http-compression'                        => 'wp-http-compression/wp-http-compression.php',
 		'wordpress-gzip-compression'                 => 'wordpress-gzip-compression/ezgz.php',
 		'gzip-ninja-speed-compression'               => 'gzip-ninja-speed-compression/gzip-ninja-speed.php',
@@ -140,6 +141,7 @@ function rocket_plugins_to_deactivate() {
 		'enable-gzip-compression'                    => 'enable-gzip-compression/enable-gzip-compression.php',
 		'leverage-browser-caching'                   => 'leverage-browser-caching/leverage-browser-caching.php',
 		'add-expires-headers'                        => 'add-expires-headers/add-expires-headers.php',
+		'page-optimize'                              => 'page-optimize/page-optimize.php',
 	];
 
 	if ( get_rocket_option( 'lazyload' ) ) {
@@ -155,7 +157,7 @@ function rocket_plugins_to_deactivate() {
 		$plugins['lazy-load-for-videos'] = 'lazy-load-for-videos/codeispoetry.php';
 	}
 
-	if ( get_rocket_option( 'minify_css' ) || get_rocket_option( 'minify_js' ) || get_rocket_option( 'minify_html' ) ) {
+	if ( get_rocket_option( 'minify_css' ) || get_rocket_option( 'minify_js' ) ) {
 		$plugins['wp-super-minify']         = 'wp-super-minify/wp-super-minify.php';
 		$plugins['bwp-minify']              = 'bwp-minify/bwp-minify.php';
 		$plugins['wp-minify']               = 'wp-minify/wp-minify.php';
@@ -168,11 +170,6 @@ function rocket_plugins_to_deactivate() {
 	if ( get_rocket_option( 'minify_css' ) || get_rocket_option( 'minify_js' ) ) {
 		$plugins['async-js-and-css']     = 'async-js-and-css/asyncJSandCSS.php';
 		$plugins['merge-minify-refresh'] = 'merge-minify-refresh/merge-minify-refresh.php';
-	}
-
-	if ( get_rocket_option( 'minify_html' ) ) {
-		$plugins['wp-html-compression'] = 'wp-html-compression/wp-html-compression.php';
-		$plugins['wp-compress-html']    = 'wp-compress-html/wp_compress_html.php';
 	}
 
 	if ( get_rocket_option( 'minify_js' ) ) {
@@ -333,41 +330,6 @@ function rocket_warning_using_permalinks() {
 	}
 }
 add_action( 'admin_notices', 'rocket_warning_using_permalinks' );
-
-/**
- * This warning is displayed when the wp-config.php file isn't writable
- *
- * @since 2.0
- */
-function rocket_warning_wp_config_permissions() {
-	$config_file = rocket_find_wpconfig_path();
-
-	if ( ! ( 'plugins.php' === $GLOBALS['pagenow'] && isset( $_GET['activate'] ) ) // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-
-		&& current_user_can( 'rocket_manage_options' )
-		&& ( ! rocket_direct_filesystem()->is_writable( $config_file ) && ( ! defined( 'WP_CACHE' ) || ! WP_CACHE ) )
-		&& rocket_valid_key() ) {
-
-		$boxes = get_user_meta( get_current_user_id(), 'rocket_boxes', true );
-
-		if ( in_array( __FUNCTION__, (array) $boxes, true ) ) {
-			return;
-		}
-
-		$message = rocket_notice_writing_permissions( 'wp-config.php' );
-
-		rocket_notice_html(
-			[
-				'status'           => 'error',
-				'dismissible'      => '',
-				'message'          => $message,
-				'dismiss_button'   => __FUNCTION__,
-				'readonly_content' => '/** Enable Cache by ' . WP_ROCKET_PLUGIN_NAME . " */\r\ndefine( 'WP_CACHE', true );\r\n",
-			]
-		);
-	}
-}
-add_action( 'admin_notices', 'rocket_warning_wp_config_permissions' );
 
 /**
  * This warning is displayed when the .htaccess file doesn't exist or isn't writeable

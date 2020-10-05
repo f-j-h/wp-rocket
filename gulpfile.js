@@ -8,15 +8,15 @@ var babel = require('babelify');
 var uglify = require('gulp-uglify');
 var sass = require('gulp-sass');
 var rename = require("gulp-rename");
-
+var iife = require('gulp-iife');
 
 /* Task to compile sass admin */
 gulp.task('sass', function () {
-  return gulp.src('./src/scss/main.scss')
-    .pipe(sass({outputStyle: 'compressed'}).on('error', sass.logError))
-    .pipe(rename('wpr-admin.css'))
-    .pipe(gulp.dest('assets/css'));
-});
+	return gulp.src('./src/scss/main.scss')
+	  .pipe(sass({outputStyle: 'compressed'}).on('error', sass.logError))
+	  .pipe(rename('wpr-admin.css'))
+	  .pipe(gulp.dest('assets/css'));
+  });
 
 /* Task to compile sass admin RTL */
 gulp.task('sass_rtl', function () {
@@ -68,7 +68,7 @@ function compile(watch) {
         });
     }
 
-    rebundle(); 
+    rebundle();
 }
 
 function watch() {
@@ -83,3 +83,61 @@ gulp.task('watch', function () {
 });
 
 gulp.task('default', ['watch', 'sass', 'sass:watch']);
+
+/**
+ * Compiles a standalone script file.
+ *
+ * Command line: gulp js:compile_single --script=script-name.js [optional --mangle=true, --iife=true]
+ */
+gulp.task('js:compile_single', () => {
+	const {argv} = require("yargs");
+	const transpile = require('gulp-babel');
+	const source = './assets/js/' + argv.script;
+	const mangle = 'mangle' in argv && argv.mangle
+		? {
+			toplevel: true,
+
+		}
+		: false;
+	const iife_status = 'iife' in argv && argv.iife;
+
+	let stream = gulp.src( source )
+		// Transpile newer JS for cross-browser support.
+		.pipe( transpile({
+			presets: [
+				[
+					'env',
+					{
+						'targets': {
+							'browsers': [ 'last 2 versions' ]
+						}
+					}
+				]
+			]
+		}))
+		// Minify the script.
+		.pipe( uglify({
+			compress: {
+				sequences: true,
+				dead_code: true,
+				conditionals: true,
+				booleans: true,
+				unused: true,
+				if_return: true,
+				join_vars: true,
+				drop_console: true
+			},
+			mangle: mangle
+		} ) );
+	//apply iife
+	if ( iife_status ) {
+		stream = stream.pipe( iife({useStrict: false, prependSemicolon: false}) );
+	}
+	stream = stream
+		// Rename the .js to .min.js.
+		.pipe( rename( { suffix: '.min' } ) )
+		// Write out the script to the configured <filename>.min.js destination.
+		.pipe( gulp.dest( './assets/js/' ) );
+
+	return stream;
+});

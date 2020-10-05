@@ -20,9 +20,11 @@ return [
 		'themes'  => [
 			'twentytwenty' => [
 				'style.css' => 'body { font-family: Helvetica, Arial, sans-serif; text-align: center;}',
+				'style-font-face.min.css' => '@font-face { font-family: Helvetica; }',
 				'assets'    => [
 					'script.js' => 'test',
 				],
+				'style-import.css' => '@import url(style.css)',
 			],
 		],
 		'plugins' => [

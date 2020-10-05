@@ -14,6 +14,17 @@ defined( 'ABSPATH' ) || exit;
  * @param AdvancedCache $advanced_cache Optional. Instance of the advanced cache handler.
  */
 function rocket_generate_advanced_cache_file( $advanced_cache = null ) {
+	/**
+	 * Filters whether to generate the advanced-cache.php file.
+	 *
+	 * @since 3.6.3
+	 *
+	 * @param bool True (default) to go ahead with advanced cache file generation; false to stop generation.
+	 */
+	if ( ! (bool) apply_filters( 'rocket_generate_advanced_cache_file', true ) ) {
+		return;
+	}
+
 	static $done = false;
 
 	if ( rocket_get_constant( 'WP_ROCKET_IS_TESTING', false ) ) {
@@ -37,7 +48,7 @@ function rocket_generate_advanced_cache_file( $advanced_cache = null ) {
 }
 
 /**
- * Generates the configuration file for the current domain based on the values ​​of options
+ * Generates the configuration file for the current domain based on the values of options
  *
  * @since 2.0
  *
@@ -229,37 +240,52 @@ function rocket_delete_config_file() {
  */
 function rocket_init_cache_dir() {
 	global $is_apache;
+
+	$filesystem = rocket_direct_filesystem();
+
 	// Create cache folder if not exist.
-	if ( ! rocket_direct_filesystem()->is_dir( WP_ROCKET_CACHE_PATH ) ) {
+	if ( ! $filesystem->is_dir( WP_ROCKET_CACHE_PATH ) ) {
 		rocket_mkdir_p( WP_ROCKET_CACHE_PATH );
 	}
 
-	if ( ! rocket_direct_filesystem()->is_file( WP_ROCKET_CACHE_PATH . 'index.html' ) ) {
-		rocket_direct_filesystem()->touch( WP_ROCKET_CACHE_PATH . 'index.html' );
+	if ( ! $filesystem->is_file( WP_ROCKET_CACHE_PATH . 'index.html' ) ) {
+		$filesystem->touch( WP_ROCKET_CACHE_PATH . 'index.html' );
 	}
 
 	if ( $is_apache ) {
 		$htaccess_path = WP_ROCKET_CACHE_PATH . '.htaccess';
 
-		if ( ! rocket_direct_filesystem()->is_file( $htaccess_path ) ) {
-			rocket_direct_filesystem()->touch( $htaccess_path );
+		if ( ! $filesystem->is_file( $htaccess_path ) ) {
+			$filesystem->touch( $htaccess_path );
 			rocket_put_content( $htaccess_path, "<IfModule mod_autoindex.c>\nOptions -Indexes\n</IfModule>" );
 		}
 	}
 
 	// Create minify cache folder if not exist.
-	if ( ! rocket_direct_filesystem()->is_dir( WP_ROCKET_MINIFY_CACHE_PATH ) ) {
+	if ( ! $filesystem->is_dir( WP_ROCKET_MINIFY_CACHE_PATH ) ) {
 		rocket_mkdir_p( WP_ROCKET_MINIFY_CACHE_PATH );
 	}
 
+	if ( ! $filesystem->is_file( WP_ROCKET_MINIFY_CACHE_PATH . 'index.html' ) ) {
+		$filesystem->touch( WP_ROCKET_MINIFY_CACHE_PATH . 'index.html' );
+	}
+
 	// Create busting cache folder if not exist.
-	if ( ! rocket_direct_filesystem()->is_dir( WP_ROCKET_CACHE_BUSTING_PATH ) ) {
+	if ( ! $filesystem->is_dir( WP_ROCKET_CACHE_BUSTING_PATH ) ) {
 		rocket_mkdir_p( WP_ROCKET_CACHE_BUSTING_PATH );
 	}
 
+	if ( ! $filesystem->is_file( WP_ROCKET_CACHE_BUSTING_PATH . 'index.html' ) ) {
+		$filesystem->touch( WP_ROCKET_CACHE_BUSTING_PATH . 'index.html' );
+	}
+
 	// Create critical CSS folder if not exist.
-	if ( ! rocket_direct_filesystem()->is_dir( WP_ROCKET_CRITICAL_CSS_PATH ) ) {
+	if ( ! $filesystem->is_dir( WP_ROCKET_CRITICAL_CSS_PATH ) ) {
 		rocket_mkdir_p( WP_ROCKET_CRITICAL_CSS_PATH );
+	}
+
+	if ( ! $filesystem->is_file( WP_ROCKET_CRITICAL_CSS_PATH . 'index.html' ) ) {
+		$filesystem->touch( WP_ROCKET_CRITICAL_CSS_PATH . 'index.html' );
 	}
 }
 
@@ -271,67 +297,17 @@ function rocket_init_cache_dir() {
  * @return void
  */
 function rocket_init_config_dir() {
-	// Create config domain folder if not exist.
-	if ( ! rocket_direct_filesystem()->is_dir( WP_ROCKET_CONFIG_PATH ) ) {
-		rocket_mkdir_p( WP_ROCKET_CONFIG_PATH );
-	}
-}
-
-/**
- * Added or set the value of the WP_CACHE constant
- *
- * @since 2.0
- *
- * @param bool $turn_it_on The value of WP_CACHE constant.
- * @return void
- */
-function set_rocket_wp_cache_define( $turn_it_on ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals
-	// If WP_CACHE is already define, return to get a coffee.
-	if ( ! rocket_valid_key() || ( $turn_it_on && defined( 'WP_CACHE' ) && WP_CACHE ) ) {
-		return;
-	}
-
-	if ( defined( 'IS_PRESSABLE' ) && IS_PRESSABLE ) {
-		return;
-	}
-
-	// Get path of the config file.
-	$config_file_path = rocket_find_wpconfig_path();
-	if ( ! $config_file_path ) {
-		return;
-	}
-
 	$filesystem = rocket_direct_filesystem();
 
-	// Get content of the config file.
-	$config_file_contents = $filesystem->get_contents( $config_file_path );
-
-	// Get the value of WP_CACHE constant.
-	$turn_it_on = $turn_it_on ? 'true' : 'false';
-
-	/**
-	 * Filter allow to change the value of WP_CACHE constant
-	 *
-	 * @since 2.1
-	 *
-	 * @param string $turn_it_on The value of WP_CACHE constant.
-	*/
-	$turn_it_on = apply_filters( 'set_rocket_wp_cache_define', $turn_it_on ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals
-
-	// Get WP_CACHE constant define.
-	$constant = "define('WP_CACHE', $turn_it_on); // Added by WP Rocket";
-
-	// Lets find out if the constant WP_CACHE is defined or not.
-	$wp_cache_found = preg_match( '/^define\(\s*\'WP_CACHE\',(.*)\)/m', $config_file_contents, $matches );
-
-	if ( ! $wp_cache_found ) {
-		$config_file_contents = preg_replace( '/(<\?php)/i', "<?php\r\n{$constant}\r\n", $config_file_contents );
-	} elseif ( ! empty( $matches[1] ) && $matches[1] !== $turn_it_on ) {
-		$config_file_contents = preg_replace( '/^define\(\s*\'WP_CACHE\',(.*)\).+/m', $constant, $config_file_contents );
+	// Create config domain folder if not exist.
+	if ( ! $filesystem->is_dir( WP_ROCKET_CONFIG_PATH ) ) {
+		rocket_mkdir_p( WP_ROCKET_CONFIG_PATH );
 	}
 
-	// Insert the constant in wp-config.php file.
-	rocket_put_content( $config_file_path, $config_file_contents );
+	// Initialize the config directory with index.html to prevent indexing.
+	if ( ! $filesystem->is_file( WP_ROCKET_CONFIG_PATH . 'index.html' ) ) {
+		$filesystem->touch( WP_ROCKET_CONFIG_PATH . 'index.html' );
+	}
 }
 
 /**
@@ -1253,48 +1229,27 @@ function rocket_get_filesystem_perms( $type ) {
 }
 
 /**
- * Try to find the correct wp-config.php file, support one level up in file tree.
+ * Gets Directory files matches regex.
  *
- * @since 2.1
+ * @since 3.6.3
+ * @access private
  *
- * @return string|bool The path of wp-config.php file or false if not found.
+ * @param string $dir   Directory to search for files inside it.
+ * @param string $regex Regular expression for files need to be searched for.
+ *
+ * @return array|RegexIterator List of files matches this regular expression.
  */
-function rocket_find_wpconfig_path() {
-	/**
-	 * Filter the wp-config's filename.
-	 *
-	 * @since 2.11
-	 *
-	 * @param string $filename The WP Config filename, without the extension.
-	 */
-	$config_file_name = apply_filters( 'rocket_wp_config_name', 'wp-config' );
-	$abspath          = rocket_get_constant( 'ABSPATH' );
-	$config_file      = "{$abspath}{$config_file_name}.php";
-	$filesystem       = rocket_direct_filesystem();
+function _rocket_get_dir_files_by_regex( $dir, $regex ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+	try {
+		$iterator = new IteratorIterator(
+			new FilesystemIterator( $dir )
+		);
 
-	if (
-		$filesystem->exists( $config_file )
-		&&
-		$filesystem->is_writable( $config_file )
-	) {
-		return $config_file;
+		return new RegexIterator( $iterator, $regex );
+	} catch ( Exception $e ) {
+		return [];
 	}
 
-	$abspath_parent  = dirname( $abspath ) . DIRECTORY_SEPARATOR;
-	$config_file_alt = "{$abspath_parent}{$config_file_name}.php";
-
-	if (
-		$filesystem->exists( $config_file_alt )
-		&&
-		$filesystem->is_writable( $config_file_alt )
-		&&
-		! $filesystem->exists( "{$abspath_parent}wp-settings.php" )
-	) {
-		return $config_file_alt;
-	}
-
-	// No writable file found.
-	return false;
 }
 
 /**
@@ -1449,4 +1404,51 @@ function _rocket_is_windows_fs( $hard_reset = false ) { // phpcs:ignore WordPres
  */
 function _rocket_get_wp_rocket_cache_path() { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
 	return _rocket_normalize_path( rocket_get_constant( 'WP_ROCKET_CACHE_PATH' ) );
+}
+
+/**
+ * Gets .php files in a directory as an array of SplFileInfo objects.
+ *
+ * @since 3.6.3
+ *
+ * @param string $dir_path Directory to check.
+ *
+ * @return array .php files in the directory. [...SplFileInfo]
+ */
+function _rocket_get_php_files_in_dir( $dir_path ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+	try {
+		$config_dir = new FilesystemIterator( (string) $dir_path );
+	} catch ( Exception $e ) {
+		return [];
+	}
+	$files = [];
+
+	foreach ( $config_dir as $file ) {
+		if ( $file->isFile() && 'php' === $file->getExtension() ) {
+			$files[] = $file;
+		}
+	}
+
+	return $files;
+}
+
+/**
+ * Get recursive files matched by regex.
+ *
+ * @since 3.6.3
+ *
+ * @param string $regex Regular Expression to be applied.
+ *
+ * @return array|RegexIterator List of files which match the regular expression (SplFileInfo).
+ */
+function _rocket_get_recursive_dir_files_by_regex( $regex ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+	try {
+		$cache_path = _rocket_get_wp_rocket_cache_path();
+		$iterator   = new RecursiveIteratorIterator(
+			new RecursiveDirectoryIterator( $cache_path, FilesystemIterator::SKIP_DOTS )
+		);
+		return new RegexIterator( $iterator, $regex, RecursiveRegexIterator::MATCH );
+	} catch ( Exception $e ) {
+		return [];
+	}
 }

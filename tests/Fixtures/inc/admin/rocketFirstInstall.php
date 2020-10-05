@@ -33,7 +33,6 @@ $default = [
 	'minify_js_key'               => 'minify_js_key_uniqid',
 	'minify_concatenate_js'       => 0,
 	'minify_google_fonts'         => 1,
-	'minify_html'                 => 0,
 	'manual_preload'              => 1,
 	'sitemap_preload'             => 0,
 	'sitemap_preload_url_crawl'   => '500000',
@@ -77,6 +76,53 @@ $default = [
 
 $integration = $default;
 $integration[ 'async_css_mobile' ] = 1;
+$integration[ 'delay_js' ]         = 1;
+$integration[ 'delay_js_scripts' ] = [
+	'getbutton.io',
+	'//a.omappapi.com/app/js/api.min.js',
+	'feedbackcompany.com/includes/widgets/feedback-company-widget.min.js',
+	'snap.licdn.com/li.lms-analytics/insight.min.js',
+	'static.ads-twitter.com/uwt.js',
+	'platform.twitter.com/widgets.js',
+	'twq(',
+	'/sdk.js#xfbml',
+	'static.leadpages.net/leadbars/current/embed.js',
+	'translate.google.com/translate_a/element.js',
+	'widget.manychat.com',
+	'xfbml.customerchat.js',
+	'static.hotjar.com/c/hotjar-',
+	'smartsuppchat.com/loader.js',
+	'grecaptcha.execute',
+	'Tawk_API',
+	'shareaholic',
+	'sharethis',
+	'simple-share-buttons-adder',
+	'addtoany',
+	'font-awesome',
+	'wpdiscuz',
+	'cookie-law-info',
+	'pinit.js',
+	'/gtag/js',
+	'gtag(',
+	'/gtm.js',
+	'/gtm-',
+	'fbevents.js',
+	'fbq(',
+	'google-analytics.com/analytics.js',
+	'ga( \'',
+	'ga(\'',
+	'adsbygoogle',
+	'ShopifyBuy',
+	'widget.trustpilot.com/bootstrap',
+	'ft.sdk.min.js',
+	'apps.elfsight.com/p/platform.js',
+	'livechatinc.com/tracking.js',
+	'LiveChatWidget',
+	'/busting/facebook-tracking/',
+	'olark',
+	'pixel-caffeine/build/frontend.js',
+];
+$integration[ 'preload_links' ]    = 0;
 
 return [
 	'test_data' => [

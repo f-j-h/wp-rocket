@@ -16,7 +16,9 @@ class_alias( '\WP_Rocket\Engine\Admin\Beacon\ServiceProvider', '\WP_Rocket\Servi
 class_alias( '\WP_Rocket\Engine\HealthCheck\CacheDirSizeCheck', '\WP_Rocket\Subscriber\Tools\Cache_Dir_Size_Check_Subscriber' );
 class_alias( '\WP_Rocket\Engine\HealthCheck\HealthCheck', '\WP_Rocket\Engine\Admin\HealthCheck' );
 class_alias( '\WP_Rocket\Engine\Optimization\ServiceProvider', '\WP_Rocket\ServiceProvider\Optimization_Subscribers' );
+class_alias( '\WP_Rocket\Engine\Optimization\IEConditionalSubscriber', '\WP_Rocket\Subscriber\Optimization\IE_Conditionals_Subscriber' );
 class_alias( '\WP_Rocket\ThirdParty\Plugins\Smush', '\WP_Rocket\Subscriber\Third_Party\Plugins\Smush_Subscriber' );
+class_alias( '\WP_Rocket\Engine\Capabilities\Subscriber', '\WP_Rocket\Subscriber\Plugin\Capabilities_Subscriber' );
 
 /**
  * Generate the content of advanced-cache.php file.
@@ -348,6 +350,103 @@ function rocket_sccss_create_cache_file( $cache_busting_path, $cache_sccss_filep
 }
 
 /**
+ * This warning is displayed when the wp-config.php file isn't writable
+ *
+ * @since 3.6.1 deprecated
+ * @since 2.0
+ */
+function rocket_warning_wp_config_permissions() {
+	_deprecated_function( __FUNCTION__ . '()', '3.6.1', '\WP_Rocket\Engine\Cache\WPCache::notice_wp_config_permissions()' );
+	$config_file = rocket_find_wpconfig_path();
+
+	if ( ! ( 'plugins.php' === $GLOBALS['pagenow'] && isset( $_GET['activate'] ) ) // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+
+		&& current_user_can( 'rocket_manage_options' )
+		&& ( ! rocket_direct_filesystem()->is_writable( $config_file ) && ( ! defined( 'WP_CACHE' ) || ! WP_CACHE ) )
+		&& rocket_valid_key() ) {
+
+		$boxes = get_user_meta( get_current_user_id(), 'rocket_boxes', true );
+
+		if ( in_array( __FUNCTION__, (array) $boxes, true ) ) {
+			return;
+		}
+
+		$message = rocket_notice_writing_permissions( 'wp-config.php' );
+
+		rocket_notice_html(
+			[
+				'status'           => 'error',
+				'dismissible'      => '',
+				'message'          => $message,
+				'dismiss_button'   => __FUNCTION__,
+				'readonly_content' => '/** Enable Cache by ' . WP_ROCKET_PLUGIN_NAME . " */\r\ndefine( 'WP_CACHE', true );\r\n",
+			]
+		);
+	}
+}
+
+/**
+ * Try to find the correct wp-config.php file, support one level up in file tree.
+ *
+ * @since 3.6 deprecated
+ * @since 2.1
+ *
+ * @return string|bool The path of wp-config.php file or false if not found.
+ */
+function rocket_find_wpconfig_path() {
+	_deprecated_function( __FUNCTION__ . '()', '3.6.1', '\WP_Rocket\Engine\Cache\WPCache::find_wpconfig_path()' );
+	/**
+	 * Filter the wp-config's filename.
+	 *
+	 * @since 2.11
+	 *
+	 * @param string $filename The WP Config filename, without the extension.
+	 */
+	$config_file_name = apply_filters( 'rocket_wp_config_name', 'wp-config' );
+	$abspath          = rocket_get_constant( 'ABSPATH' );
+	$config_file      = "{$abspath}{$config_file_name}.php";
+	$filesystem       = rocket_direct_filesystem();
+
+	if (
+		$filesystem->exists( $config_file )
+		&&
+		$filesystem->is_writable( $config_file )
+	) {
+		return $config_file;
+	}
+
+	$abspath_parent  = dirname( $abspath ) . DIRECTORY_SEPARATOR;
+	$config_file_alt = "{$abspath_parent}{$config_file_name}.php";
+
+	if (
+		$filesystem->exists( $config_file_alt )
+		&&
+		$filesystem->is_writable( $config_file_alt )
+		&&
+		! $filesystem->exists( "{$abspath_parent}wp-settings.php" )
+	) {
+		return $config_file_alt;
+	}
+
+	// No writable file found.
+	return false;
+}
+
+/**
+ * Define WP_CACHE to true if it's not defined yet.
+ *
+ * @since 3.6.1 deprecated
+ * @since 2.6
+ */
+function rocket_maybe_set_wp_cache_define() {
+	_deprecated_function( __FUNCTION__ . '()', '3.6.1', '\WP_Rocket\Engine\Cache\WPCache::maybe_set_wp_cache()' );
+
+	if ( defined( 'WP_CACHE' ) && ! WP_CACHE ) {
+		set_rocket_wp_cache_define( true );
+	}
+}
+
+/**
  * Get all dates archives urls associated to a specific post.
  *
  * @since 3.6.1 deprecated
@@ -389,6 +488,64 @@ function get_rocket_post_dates_urls( $post_id ) { // phpcs:ignore WordPress.Nami
 	return (array) apply_filters( 'rocket_post_dates_urls', $urls );
 }
 
+/**
+ * Added or set the value of the WP_CACHE constant
+ *
+ * @since 3.6.1 deprecated
+ * @since 2.0
+ *
+ * @param bool $turn_it_on The value of WP_CACHE constant.
+ * @return void
+ */
+function set_rocket_wp_cache_define( $turn_it_on ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals
+	_deprecated_function( __FUNCTION__ . '()', '3.6.1', '\WP_Rocket\Engine\Cache\WPCache::set_wp_cache_constant()' );
+	// If WP_CACHE is already define, return to get a coffee.
+	if ( ! rocket_valid_key() || ( $turn_it_on && defined( 'WP_CACHE' ) && WP_CACHE ) ) {
+		return;
+	}
+
+	if ( defined( 'IS_PRESSABLE' ) && IS_PRESSABLE ) {
+		return;
+	}
+
+	// Get path of the config file.
+	$config_file_path = rocket_find_wpconfig_path();
+	if ( ! $config_file_path ) {
+		return;
+	}
+
+	$filesystem = rocket_direct_filesystem();
+
+	// Get content of the config file.
+	$config_file_contents = $filesystem->get_contents( $config_file_path );
+
+	// Get the value of WP_CACHE constant.
+	$turn_it_on = $turn_it_on ? 'true' : 'false';
+
+	/**
+	 * Filter allow to change the value of WP_CACHE constant
+	 *
+	 * @since 2.1
+	 *
+	 * @param string $turn_it_on The value of WP_CACHE constant.
+	*/
+	$turn_it_on = apply_filters( 'set_rocket_wp_cache_define', $turn_it_on ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals
+
+	// Get WP_CACHE constant define.
+	$constant = "define('WP_CACHE', $turn_it_on); // Added by WP Rocket";
+
+	// Lets find out if the constant WP_CACHE is defined or not.
+	$wp_cache_found = preg_match( '/^define\(\s*\'WP_CACHE\',(.*)\)/m', $config_file_contents, $matches );
+
+	if ( ! $wp_cache_found ) {
+		$config_file_contents = preg_replace( '/(<\?php)/i', "<?php\r\n{$constant}\r\n", $config_file_contents );
+	} elseif ( ! empty( $matches[1] ) && $matches[1] !== $turn_it_on ) {
+		$config_file_contents = preg_replace( '/^define\(\s*\'WP_CACHE\',(.*)\).+/m', $constant, $config_file_contents );
+	}
+
+	// Insert the constant in wp-config.php file.
+	rocket_put_content( $config_file_path, $config_file_contents );
+}
 
 /**
  * Get all terms archives urls associated to a specific post
@@ -496,6 +653,32 @@ function rocket_get_compressed_assets_rules() {
 HTACCESS;
 
 	return apply_filters( 'rocket_htaccess_compressed_assets', $rules );
+}
+
+/**
+ * Get list of CSS files to be excluded from async CSS.
+ *
+ * @since 3.6.2 deprecated
+ * @since 2.10
+ * @author Remy Perona
+ *
+ * @return array An array of URLs for the CSS files to be excluded.
+ */
+function get_rocket_exclude_async_css() { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals
+	_deprecated_function( __FUNCTION__ . '()', '3.6.2', '\WP_Rocket\Engine\CriticalPath\CriticalCSS::get_exclude_async_css()' );
+	/**
+	 * Filter list of async CSS files
+	 *
+	 * @since 2.10
+	 * @author Remy Perona
+	 *
+	 * @param array $exclude_async_css An array of URLs for the CSS files to be excluded.
+	 */
+	$exclude_async_css = (array) apply_filters( 'rocket_exclude_async_css', [] );
+	$exclude_async_css = array_filter( $exclude_async_css );
+	$exclude_async_css = array_flip( array_flip( $exclude_async_css ) );
+
+	return $exclude_async_css;
 }
 
 /**
@@ -626,4 +809,326 @@ function rocket_wpengine_add_footprint( $buffer ) {
 	$footprint .= ' -->';
 
 	return $buffer . $footprint;
+}
+
+/**
+ * Tell WP what to do when plugin is deactivated.
+ *
+ * @since 3.6.3 deprecated
+ * @since 1.0
+ */
+function rocket_deactivation() {
+	_deprecated_function( __FUNCTION__ . '()', '3.6.3', '\WP_Rocket\Engine\Deactivation\Deactivation::deactivate_plugin' );
+	global $is_apache;
+
+	$filesystem = rocket_direct_filesystem();
+	$wp_cache   = new WPCache( $filesystem );
+
+	if ( ! isset( $_GET['rocket_nonce'] ) || ! wp_verify_nonce( sanitize_key( $_GET['rocket_nonce'] ), 'force_deactivation' ) ) {
+		$causes = [];
+
+		// .htaccess problem.
+		if ( $is_apache && ! $filesystem->is_writable( get_home_path() . '.htaccess' ) ) {
+			$causes[] = 'htaccess';
+		}
+
+		// wp-config problem.
+		if (
+			! $wp_cache->find_wpconfig_path()
+			&&
+			// This filter is documented in inc/Engine/Cache/WPCache.php.
+			(bool) apply_filters( 'rocket_set_wp_cache_constant', true )
+		) {
+			$causes[] = 'wpconfig';
+		}
+
+		if ( count( $causes ) ) {
+			set_transient( get_current_user_id() . '_donotdeactivaterocket', $causes );
+			wp_safe_redirect( wp_get_referer() );
+			die();
+		}
+	}
+
+	// Delete config files.
+	rocket_delete_config_file();
+
+	if ( ! count( glob( WP_ROCKET_CONFIG_PATH . '*.php' ) ) ) {
+		// Delete All WP Rocket rules of the .htaccess file.
+		flush_rocket_htaccess( true );
+
+		// Remove WP_CACHE constant in wp-config.php.
+		$wp_cache->set_wp_cache_constant( false );
+
+		// Delete content of advanced-cache.php.
+		rocket_put_content( WP_CONTENT_DIR . '/advanced-cache.php', '' );
+	}
+
+	// Update customer key & licence.
+	wp_remote_get(
+		WP_ROCKET_WEB_API . 'pause-licence.php',
+		[
+			'blocking' => false,
+		]
+	);
+
+	// Delete transients.
+	delete_transient( 'rocket_check_licence_30' );
+	delete_transient( 'rocket_check_licence_1' );
+	delete_site_transient( 'update_wprocket_response' );
+
+	// Unschedule WP Cron events.
+	wp_clear_scheduled_hook( 'rocket_facebook_tracking_cache_update' );
+	wp_clear_scheduled_hook( 'rocket_google_tracking_cache_update' );
+	wp_clear_scheduled_hook( 'rocket_cache_dir_size_check' );
+
+	/**
+	 * WP Rocket deactivation.
+	 *
+	 * @since  3.1.5
+	 * @author Grégory Viguier
+	 */
+	do_action( 'rocket_deactivation' );
+
+	( new Capabilities_Subscriber() )->remove_rocket_capabilities();
+}
+
+/**
+ * Tell WP what to do when plugin is activated.
+ *
+ * @since 3.6.3
+ * @since 1.1.0
+ */
+function rocket_activation() {
+	_deprecated_function( __FUNCTION__ . '()', '3.6.3', '\WP_Rocket\Engine\Activation\Activation::deactivate_plugin' );
+	( new Capabilities_Subscriber() )->add_rocket_capabilities();
+
+	$filesystem = rocket_direct_filesystem();
+	$wp_cache   = new WPCache( $filesystem );
+
+	// Last constants.
+	define( 'WP_ROCKET_PLUGIN_NAME', 'WP Rocket' );
+	define( 'WP_ROCKET_PLUGIN_SLUG', sanitize_key( WP_ROCKET_PLUGIN_NAME ) );
+
+	if ( defined( 'SUNRISE' ) && SUNRISE === 'on' && function_exists( 'domain_mapping_siteurl' ) ) {
+		require WP_ROCKET_INC_PATH . 'domain-mapping.php';
+	}
+
+	require WP_ROCKET_FUNCTIONS_PATH . 'options.php';
+	require WP_ROCKET_FUNCTIONS_PATH . 'formatting.php';
+	require WP_ROCKET_FUNCTIONS_PATH . 'i18n.php';
+	require WP_ROCKET_FUNCTIONS_PATH . 'htaccess.php';
+
+	if ( class_exists( 'WPaaS\Plugin' ) ) {
+		require WP_ROCKET_3RD_PARTY_PATH . 'hosting/godaddy.php';
+	}
+	if ( defined( 'O2SWITCH_VARNISH_PURGE_KEY' ) ) {
+		require WP_ROCKET_3RD_PARTY_PATH . 'hosting/o2switch.php';
+	}
+
+	if ( rocket_valid_key() ) {
+		// Add All WP Rocket rules of the .htaccess file.
+		flush_rocket_htaccess();
+
+		// Add WP_CACHE constant in wp-config.php.
+		$wp_cache->set_wp_cache_constant( true );
+	}
+
+	// Create the cache folders (wp-rocket & min).
+	rocket_init_cache_dir();
+
+	// Create the config folder (wp-rocket-config).
+	rocket_init_config_dir();
+
+	// Create advanced-cache.php file.
+	rocket_generate_advanced_cache_file( new AdvancedCache( WP_ROCKET_PATH . 'views/cache/', $filesystem ) );
+
+	/**
+	 * WP Rocket activation.
+	 *
+	 * @since  3.1.5
+	 * @author Grégory Viguier
+	 */
+	do_action( 'rocket_activation' );
+
+	// Update customer key & licence.
+	wp_remote_get(
+		WP_ROCKET_WEB_API . 'activate-licence.php',
+		[
+			'blocking' => false,
+		]
+	);
+
+	wp_remote_get(
+		home_url(),
+		[
+			'timeout'    => 0.01,
+			'blocking'   => false,
+			'user-agent' => 'WP Rocket/Homepage Preload',
+			'sslverify'  => apply_filters( 'https_local_ssl_verify', false ), // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound
+		]
+	);
+}
+
+/**
+ * Excludes Divi's Salvatorre script from JS minification
+ *
+ * Exclude it to prevent an error after minification/concatenation
+ *
+ * @since 3.6.3 deprecated
+ * @since 2.9
+ * @author Remy Perona
+ *
+ * @param Array $excluded_js An array of JS paths to be excluded.
+ * @return Array the updated array of paths
+ */
+function rocket_exclude_js_divi( $excluded_js ) {
+	_deprecated_function( __FUNCTION__ . '()', '3.6.3', '\WP_Rocket\ThirdParty\Themes\Divi::exclude_js' );
+	if ( defined( 'ET_BUILDER_URI' ) ) {
+		$excluded_js[] = str_replace( home_url(), '', ET_BUILDER_URI ) . '/scripts/salvattore.min.js';
+	}
+
+	return $excluded_js;
+}
+
+/**
+ * Changes the text on the Varnish one-click block.
+ *
+ * @since 3.1
+ *
+ * @param array $settings Field settings data.
+ *
+ * @return array modified field settings data.
+ */
+function rocket_o2switch_varnish_field( $settings ) {
+	_deprecated_function( __FUNCTION__ . '()', '3.6.3', '\WP_Rocket\ThirdParty\Hostings\O2Switch::varnish_addon_title' );
+	// Translators: %s = Hosting name.
+	$settings['varnish_auto_purge']['title'] = sprintf( __( 'Your site is hosted on %s, we have enabled Varnish auto-purge for compatibility.', 'rocket' ), 'o2switch' );
+
+	return $settings;
+}
+
+/**
+ * Purge all the domain.
+ *
+ * @since 3.1
+ *
+ * @param string $root The path of home cache file.
+ * @param string $lang The current lang to purge.
+ * @param string $url  The home url.
+ */
+function rocket_o2switch_varnish_clean_domain( $root, $lang, $url ) {
+	_deprecated_function( __FUNCTION__ . '()', '3.6.3', '\WP_Rocket\ThirdParty\Hostings\O2Switch::varnish_clean_domain' );
+	rocket_o2switch_varnish_http_purge( trailingslashit( $url ) . '?vregex' );
+}
+
+/**
+ * Purge a specific page.
+ *
+ * @since 3.1
+ *
+ * @param string $url The url to purge.
+ */
+function rocket_o2switch_varnish_clean_file( $url ) {
+	_deprecated_function( __FUNCTION__ . '()', '3.6.3', '\WP_Rocket\ThirdParty\Hostings\O2Switch::varnish_clean_file' );
+	rocket_o2switch_varnish_http_purge( trailingslashit( $url ) . '?vregex' );
+}
+
+/**
+ * Purge the homepage and its pagination.
+ *
+ * @since 3.1
+ *
+ * @param string $root The path of home cache file.
+ * @param string $lang The current lang to purge.
+ */
+function rocket_o2switch_varnish_clean_home( $root, $lang ) {
+	_deprecated_function( __FUNCTION__ . '()', '3.6.3', '\WP_Rocket\ThirdParty\Hostings\O2Switch::varnish_clean_home' );
+	$home_url            = trailingslashit( get_rocket_i18n_home_url( $lang ) );
+	$home_pagination_url = $home_url . trailingslashit( $GLOBALS['wp_rewrite']->pagination_base ) . '?vregex';
+
+	rocket_o2switch_varnish_http_purge( $home_url );
+	rocket_o2switch_varnish_http_purge( $home_pagination_url );
+}
+
+/**
+ * Send data to Varnish.
+ *
+ * @since 3.1
+ *
+ * @param  string $url The URL to purge.
+ */
+function rocket_o2switch_varnish_http_purge( $url ) {
+	_deprecated_function( __FUNCTION__ . '()', '3.6.3', '\WP_Rocket\ThirdParty\Hostings\O2Switch::varnish_http_purge' );
+	$parse_url = get_rocket_parse_url( $url );
+
+	// This filter is documented in inc/functions/varnish.php.
+	$headers = apply_filters(
+		'rocket_varnish_purge_headers',
+		[
+			/**
+			 * Filters the host value passed in the request headers
+			 *
+			 * @since 2.8.15
+			 * @param string The host
+			 */
+			'host'           => apply_filters( 'rocket_varnish_purge_request_host', $parse_url['host'] ),
+			'X-VC-Purge-Key' => O2SWITCH_VARNISH_PURGE_KEY,
+		]
+	);
+
+	if ( 'vregex' === $parse_url['query'] ) {
+		$headers['X-Purge-Regex'] = '.*';
+	}
+
+	/**
+	 * Filter the Varnish IP to call
+	 *
+	 * @since 2.6.8
+	 *
+	 * @param string The Varnish IP
+	 */
+	$varnish_ip = apply_filters( 'rocket_varnish_ip', [] );
+
+	if ( defined( 'WP_ROCKET_VARNISH_IP' ) && ! $varnish_ip ) {
+		$varnish_ip = WP_ROCKET_VARNISH_IP;
+	}
+
+	/**
+	 * Filter the HTTP protocol (scheme)
+	 *
+	 * @since 2.7.3
+	 *
+	 * @param string The HTTP protocol
+	 */
+	$scheme = apply_filters( 'rocket_varnish_http_purge_scheme', $parse_url['scheme'] );
+
+	$parse_url['host'] = ( $varnish_ip ) ? $varnish_ip : $parse_url['host'];
+	$purgeme           = $scheme . '://' . $parse_url['host'] . $parse_url['path'];
+
+	wp_remote_request(
+		$purgeme,
+		[
+			'method'      => 'PURGE',
+			'blocking'    => false,
+			'redirection' => 0,
+			'headers'     => $headers,
+		]
+	);
+}
+
+/**
+ * Remove expiration on HTML to prevent issue with Varnish cache.
+ *
+ * @since 3.1
+ *
+ * @param  string $rules htaccess rules.
+ *
+ * @return string        Updated htaccess rules.
+ */
+function rocket_o2switch_remove_html_expire( $rules ) {
+	_deprecated_function( __FUNCTION__ . '()', '3.6.3', '\WP_Rocket\ThirdParty\Hostings\O2Switch::remove_html_expire' );
+	$rules = preg_replace( '@\s*#\s*Your document html@', '', $rules );
+	$rules = preg_replace( '@\s*ExpiresByType text/html\s*"access plus \d+ (seconds|minutes|hour|week|month|year)"@', '', $rules );
+
+	return $rules;
 }
